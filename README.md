@@ -16,10 +16,7 @@
 The foundation of this deployment is an AWS Lambda Function that performs the following actions:
 
 + **Poll Kendal XML Feed** to identify changes in listings (e.g. new property added, listing removed, etc.)
-+ **Update DynamoDB** with any _new_ listings identified — this DB is non-functional, and is simply used to store a history of listings for posterity.
-
-> **💡 Note:** DynamoDB may need to serve as a mapping between the unique property ID from Kendal, and the ID associated with each item in Webflow, so as to easily identify which items have been delisted from Kendal (then update Webflow accordingly)
-
++ **Update DynamoDB** with any _new_ listings identified — this DynamoDB table stores full listing data for posterity, but, more importantly, it maps the Webflow CMS item `id` with the property reference ID from Kendal.
 + **Call the Webflow API** to add new listings, and remove those which have been delisted from the Kendal CRM.
 
 The Lambda Function is supported by an EventBridge 'cron job', which triggers an invocation every _X_ minutes.
