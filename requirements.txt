@@ -1,0 +1,4 @@
+xmltodict
+pydantic
+requests
+boto3
