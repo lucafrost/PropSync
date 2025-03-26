@@ -1,4 +1,5 @@
 from typing import Any, List, OrderedDict
+from urllib.parse import quote
 import xmltodict
 import pydantic
 import requests
@@ -71,8 +72,10 @@ class KendalAgent:
         properties = self._extract_properties(feed)
         properties = self._serialise_all(properties)
         # [2.] DELETE ALL WEBFLOW CMS ITEMS
-        cms_ids = self._get_all_item_ids(self.webflow_collection)
-        self._delete_items(self.webflow_collection, cms_ids)
+        live_ids = self._get_all_item_ids(live=True, collection_id=self.webflow_collection)
+        draft_ids = self._get_all_item_ids(live=False, collection_id=self.webflow_collection)
+        self._delete_items(live=True, collection_id=self.webflow_collection, item_ids=live_ids)
+        self._delete_items(live=False, collection_id=self.webflow_collection, item_ids=draft_ids)
         # [3.] CREATE ALL NEW ITEMS IN BULK
         self._create_bulk_items(self.webflow_collection, properties)
 
@@ -103,11 +106,11 @@ class KendalAgent:
                 AskingPrice="AED {:,}".format(int(prop["askingPrice"]["value"])),
                 NumBeds=f'{prop["bedroom"]} Bedrooms',
                 NumBaths=f'{prop["bathroom"]} Bathrooms',
-                ImageOne=prop["photo"]["url"][0],
-                ImageTwo=prop["photo"]["url"][1],
-                ImageThree=prop["photo"]["url"][2],
-                ImageFour=prop["photo"]["url"][3],
-                ImageFive=prop["photo"]["url"][4]
+                ImageOne=quote(prop["photo"]["url"][0], safe=':/'),  # Encode URL, keep :/ safe
+                ImageTwo=quote(prop["photo"]["url"][1], safe=':/'),
+                ImageThree=quote(prop["photo"]["url"][2], safe=':/'),
+                ImageFour=quote(prop["photo"]["url"][3], safe=':/'),
+                ImageFive=quote(prop["photo"]["url"][4], safe=':/')
             )
             serialised.append(list_obj)
         return serialised
@@ -123,16 +126,22 @@ class KendalAgent:
                 long_desc = '\n'.join(parts[1:])
         return short_desc, long_desc
 
-    def _get_all_item_ids(self, collection_id: str) -> List[dict]:
-        url = f"https://api.webflow.com/v2/collections/{collection_id}/items/live?limit=100"
+    def _get_all_item_ids(self, live: bool, collection_id: str) -> List[dict]:
+        if live:
+            url = f"https://api.webflow.com/v2/collections/{collection_id}/items/live?limit=100"
+        else:
+            url = f"https://api.webflow.com/v2/collections/{collection_id}/items?limit=100"
         headers = {"Authorization": f"Bearer {self.webflow_key}"}
         r = requests.request("GET", url, headers=headers)
         if not r.ok:
             raise RuntimeError(f"Failed to list all Webflow items, status code {r.status_code} returned")
         return [{"id": item["id"]} for item in r.json()["items"]]
 
-    def _delete_items(self, collection_id: str, item_ids: List[dict]):
-        url = f"https://api.webflow.com/v2/collections/{collection_id}/items/live"
+    def _delete_items(self, live: bool, collection_id: str, item_ids: List[dict]):
+        if live:
+            url = f"https://api.webflow.com/v2/collections/{collection_id}/items/live"
+        else:
+            url = f"https://api.webflow.com/v2/collections/{collection_id}/items"
         headers = {
             "Authorization": f"Bearer {self.webflow_key}",
             "Content-Type": "application/json"
@@ -193,3 +202,16 @@ class KendalAgent:
             error_message = f"Failed to create bulk Webflow items, status code {r.status_code} returned: {r.text}"
             raise RuntimeError(error_message)
         return r
+
+
+# ----- LAMBDA RUNTIME -----
+
+ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
+                 webflow_secret=WEBFLOW_SECRET,
+                 webflow_collection=WF_COLLECTION)
+
+def lambda_handler(event: dict, context: dict):
+    ka.run()
+    print("Successfully synced Kendal with Webflow")
+
+lambda_handler({}, {})
