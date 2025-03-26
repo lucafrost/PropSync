@@ -29,10 +29,16 @@ variable "python_version" {
   default     = "3.10"
 }
 
-variable "layer_path" {
+variable "xmltodict_layer" {
   type        = string
-  description = "Path to .zip file containing AWS Lambda Layer"
+  description = "Path to .zip file containing xmltodict Lambda Layer"
   default     = "../xmltodict_layer.zip"
+}
+
+variable "webflow_layer" {
+  type        = string
+  description = "Path to .zip file containing Webflow Lambda Layer"
+  default     = "../webflow_layer.zip"
 }
 
 variable "trigger_frequency" {

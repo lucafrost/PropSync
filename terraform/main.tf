@@ -12,7 +12,7 @@ data "klayers_package_latest_version" "pydantic" {
   python_version = var.python_version
 }
 
-# Lambda :: Upload Layer (if change detected)
+# Lambda :: Upload xmltodict Layer (if change detected)
 resource "aws_lambda_layer_version" "xmltodict" {
   layer_name  = "xmltodict"
   description = "xmltodict is a Python package for converting between XML and JSON"
@@ -20,8 +20,22 @@ resource "aws_lambda_layer_version" "xmltodict" {
   compatible_runtimes      = ["python${var.python_version}"]
   compatible_architectures = ["x86_64", "arm64"]
 
-  filename         = var.layer_path
-  source_code_hash = filebase64sha256(var.layer_path)
+  filename         = var.xmltodict_layer
+  source_code_hash = filebase64sha256(var.xmltodict_layer)
+
+  skip_destroy = true
+}
+
+# Lambda :: Upload Webflow Layer (if change detected)
+resource "aws_lambda_layer_version" "webflow" {
+  layer_name  = "webflow"
+  description = "webflow is a Python package that wraps the Webflow Data API"
+
+  compatible_runtimes      = ["python${var.python_version}"]
+  compatible_architectures = ["x86_64", "arm64"]
+
+  filename         = var.webflow_layer
+  source_code_hash = filebase64sha256(var.webflow_layer)
 
   skip_destroy = true
 }
@@ -139,7 +153,8 @@ resource "aws_lambda_function" "lambda" {
   layers = [
     data.klayers_package_latest_version.pydantic.arn,
     data.klayers_package_latest_version.requests.arn,
-    aws_lambda_layer_version.xmltodict.arn
+    aws_lambda_layer_version.xmltodict.arn,
+    aws_lambda_layer_version.webflow.arn
   ]
 
   environment {
