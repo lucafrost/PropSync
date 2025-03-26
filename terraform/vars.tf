@@ -6,6 +6,12 @@ variable "webflow_secret" {
   # docs: https://developers.webflow.com/data/reference/site-token
 }
 
+variable "webflow_collection_id" {
+  type        = string
+  description = "ID of Collection in Webflow CMS"
+  # docs: https://discourse.webflow.com/t/access-the-auto-generated-id-of-a-cms-item/104891
+}
+
 variable "kendal_feed" {
   type        = string
   description = "URL of Kendal XML Feed"

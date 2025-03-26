@@ -161,6 +161,7 @@ resource "aws_lambda_function" "lambda" {
     variables = {
       XML_ENDPOINT   = var.kendal_feed
       WEBFLOW_SECRET = var.webflow_secret
+      WF_COLLECTION  = var.webflow_collection_id
       DYNAMO_TABLE   = aws_dynamodb_table.table.name
     }
   }
