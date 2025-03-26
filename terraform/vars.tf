@@ -41,12 +41,6 @@ variable "xmltodict_layer" {
   default     = "../xmltodict_layer.zip"
 }
 
-variable "webflow_layer" {
-  type        = string
-  description = "Path to .zip file containing Webflow Lambda Layer"
-  default     = "../webflow_layer.zip"
-}
-
 variable "trigger_frequency" {
   type        = number
   description = "Frequency at which to trigger Lambda Function (in minutes)"

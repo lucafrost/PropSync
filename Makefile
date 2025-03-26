@@ -13,7 +13,7 @@
 # Terraform.
 #
 
-PYTHON_PACKAGES = xmltodict webflow
+PYTHON_PACKAGES = xmltodict
 
 .PHONY: layers
 layers:
