@@ -26,31 +26,19 @@ resource "aws_lambda_layer_version" "xmltodict" {
   skip_destroy = true
 }
 
-# DynamoDB :: Create Table
-resource "aws_dynamodb_table" "table" {
-  name         = "PropSync-DynamoTable"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "KendalRef"
-
-  attribute {
-    name = "KendalRef"
-    type = "S"
-  }
-}
-
 # EventBridge :: Create Lambda Trigger
 resource "aws_cloudwatch_event_rule" "cron" {
   name        = "PropSync-LambdaTrigger"
   description = "Triggers a Lambda Function every ${var.trigger_frequency} mins"
 
-  event_pattern = "rate(${var.trigger_frequency} minutes)"
+  schedule_expression = "rate(${var.trigger_frequency} minutes)"
 }
 
 # IAM :: Create Lambda Execution Policy
 resource "aws_iam_policy" "lambda" {
   name        = "PropSync-PolicyForLambdaFunction"
   path        = "/"
-  description = "Allows the PropSync Lambda to read the Webflow secret, update DynamoDB table, and log to CloudWatch"
+  description = "Allows the PropSync Lambda to read the Webflow secret, and log to CloudWatch"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -60,18 +48,6 @@ resource "aws_iam_policy" "lambda" {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = [var.webflow_secret]
-      },
-      {
-        Sid    = "UpdateDynamoTable"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:Query",
-          "dynamodb:Scan",
-          "dynamodb:UpdateItem"
-        ]
-        Resource = [aws_dynamodb_table.table]
       },
       {
         Sid    = "CloudWatchLogging"
@@ -91,7 +67,7 @@ resource "aws_iam_policy" "lambda" {
 resource "aws_iam_role" "lambda" {
   name        = "PropSync-RoleForLambdaFunction"
   path        = "/"
-  description = "Allows the PropSync Lambda to read the Webflow secret, update DynamoDB table, and log to CloudWatch"
+  description = "Allows the PropSync Lambda to read the Webflow secret, and log to CloudWatch"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -147,7 +123,6 @@ resource "aws_lambda_function" "lambda" {
       XML_ENDPOINT   = var.kendal_feed
       WEBFLOW_SECRET = var.webflow_secret
       WF_COLLECTION  = var.webflow_collection_id
-      DYNAMO_TABLE   = aws_dynamodb_table.table.name
     }
   }
 }
