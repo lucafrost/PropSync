@@ -27,7 +27,12 @@ The Lambda Function is supported by an EventBridge 'cron job', which triggers an
 
 ### Getting Started
 
-XX
+1. Create the necessary Lambda Layers by running `make layers` in the root directory of the repo. This triggers the [Makefile](Makefile)
+2. Create a file named `terraform.tfvars` in the `terraform/` directory, with the following variables:
+   * `webflow_secret`: ARN or Name of Secret in AWS Secrets Manager containing your [Webflow Site Token](https://developers.webflow.com/data/reference/site-token)
+   * `webflow_collection_id`: Unique ID of Webflow collection to sync
+   * `kendal_feed`: URL (incl. token params) of the exposed Kendal XML feed.
+3. Navigate to the terraform directory, and run `terraform apply` to deploy the infrastructure to your AWS account.
 
 ### Resources
 

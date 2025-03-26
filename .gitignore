@@ -80,3 +80,4 @@ dmypy.json
 cython_debug/
 /.$propsync.drawio.bkp
 /misc/.$propsync.drawio.bkp
+/terraform/terraform.tfvars
