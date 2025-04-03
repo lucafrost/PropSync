@@ -1,4 +1,4 @@
-from typing import Any, List, OrderedDict
+from typing import Any, List, OrderedDict, Optional
 from urllib.parse import quote
 import xmltodict
 import pydantic
@@ -20,6 +20,7 @@ AWS_REGION = os.environ["AWS_REGION"]
 # ----- PYDANTIC MODEL -----
 
 class ListingType(pydantic.BaseModel):
+    # Metadata
     KendalRef: str
     PropertyName: str
     PropType: str
@@ -30,11 +31,17 @@ class ListingType(pydantic.BaseModel):
     SizeSqft: str
     NumBeds: str
     NumBaths: str
+    # Property Images
     ImageOne: str
     ImageTwo: str
     ImageThree: str
     ImageFour: str
     ImageFive: str
+    # Agent Details
+    AgentName: Optional[str] = None
+    AgentAvatar: Optional[str] = None
+    AgentEmail: Optional[str] = None
+    AgentTel: Optional[str] = None
 
 
 # ----- Main Codebase -----
@@ -110,7 +117,11 @@ class KendalAgent:
                 ImageTwo=quote(prop["photo"]["url"][1], safe=':/'),
                 ImageThree=quote(prop["photo"]["url"][2], safe=':/'),
                 ImageFour=quote(prop["photo"]["url"][3], safe=':/'),
-                ImageFive=quote(prop["photo"]["url"][4], safe=':/')
+                ImageFive=quote(prop["photo"]["url"][4], safe=':/'),
+                AgentName=prop["agent"]["name"],
+                AgentAvatar=quote(prop["agent"]["photo"], safe=':/'),
+                AgentEmail=prop["agent"]["email"],
+                AgentTel=prop["agent"]["phone"]
             )
             serialised.append(list_obj)
         return serialised
@@ -192,6 +203,13 @@ class KendalAgent:
                 "property-smal-image-4": {
                     "fileId": None,
                     "url": prop.ImageFive
+                },
+                "agentname": prop.AgentName,
+                "agentemail": prop.AgentEmail,
+                "agenttel": prop.AgentTel,
+                "agentavatar": {
+                    "fileId": None,
+                    "url": prop.AgentAvatar
                 }
             }
         } for prop in properties]
@@ -215,3 +233,11 @@ def lambda_handler(event: dict, context: dict):
     print("Successfully synced Kendal with Webflow")
 
 lambda_handler({}, {})
+
+# if __name__ == "__main__":
+#     boto_sess = boto3.Session(region_name=AWS_REGION, profile_name="ccre")
+#     ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
+#                      webflow_secret=WEBFLOW_SECRET,
+#                      webflow_collection=WF_COLLECTION,
+#                      boto_session=boto_sess)
+#     ka.run()
