@@ -124,6 +124,7 @@ resource "aws_lambda_function" "lambda" {
       WEBFLOW_SECRET = var.webflow_secret
       WF_COLLECTION  = var.webflow_collection_id
       POA_VALUE      = var.poa_value
+      CS_VALUE       = var.cs_value
     }
   }
 }

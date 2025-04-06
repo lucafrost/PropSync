@@ -3,7 +3,8 @@ from typing import (
     List,
     OrderedDict,
     Optional,
-    Union
+    Union,
+    Literal
 )
 from urllib.parse import quote
 import xmltodict
@@ -22,7 +23,7 @@ WF_COLLECTION = os.environ["WF_COLLECTION"]
 XML_ENDPOINT = os.environ["XML_ENDPOINT"]
 AWS_REGION = os.environ["AWS_REGION"]
 POA_VALUE = os.environ["POA_VALUE"]
-
+CS_VALUE = os.environ["CS_VALUE"]
 
 # ----- PYDANTIC MODEL -----
 
@@ -57,7 +58,8 @@ class KendalAgent:
     def __init__(self, xml_endpoint: str,
                  webflow_secret: str,
                  webflow_collection: str,
-                 poa_value: Union[False, int],
+                 poa_value: Union[Literal[False], int],
+                 cs_value: Union[Literal[False], int],
                  boto_session: boto3.Session = None) -> None:
         """
         Initialise a new KendalAgent object.
@@ -74,6 +76,10 @@ class KendalAgent:
             Optional. Value at which the price changes to
             "Price on Application". See notes. Set to False to
             disable this behaviour.
+        cs_value : Union[False, int]
+            Optional. Value at which the price changes to
+            "Coming Soon". See notes. Set to False to
+            disable this behaviour.
         boto_session : boto3.Session
             Pre-initialised Boto3 Session for AWS Authentication.
 
@@ -84,6 +90,9 @@ class KendalAgent:
         `poa_value` to an integer (e.g. 999), any properties priced
         at that value will have their price set in Webflow as
         "price on application".
+
+        As with `poa_value`, the `cs_value` field can be used to set
+        the price field to "Coming Soon".
         """
         if not boto_session:
             boto_session = boto3.Session(region_name=AWS_REGION)
@@ -93,6 +102,7 @@ class KendalAgent:
         self.xml_endpoint = xml_endpoint
         self.webflow_collection = webflow_collection
         self.poa_value = poa_value
+        self.cs_value = cs_value
 
     def run(self):
         # [1.] PRE-PROCESSING
@@ -130,10 +140,10 @@ class KendalAgent:
                 ShortDesc=short_desc,
                 LongDesc=long_desc,
                 Address=f'{prop["property_name"]}, {prop["community"]}, {prop["city"]}',
-                SizeSqft="{:,}".format(int(prop["size"])),
+                SizeSqft=self._prop_size_handler(prop),
                 AskingPrice=self._price_handler(int(prop["askingPrice"]["value"])),
-                NumBeds=f'{prop["bedroom"]} Bedrooms',
-                NumBaths=f'{prop["bathroom"]} Bathrooms',
+                NumBeds=self._bed_bath_handler(prop, "beds"),
+                NumBaths=self._bed_bath_handler(prop, "baths"),
                 ImageOne=self._serialise_url(prop["photo"]["url"][0]),
                 ImageTwo=self._serialise_url(prop["photo"]["url"][1]),
                 ImageThree=self._serialise_url(prop["photo"]["url"][2]),
@@ -164,8 +174,30 @@ class KendalAgent:
     def _price_handler(self, price: int) -> str:
         if price == self.poa_value:
             return "Price on Application"
+        elif price == self.cs_value:
+            return "Coming Soon"
         else:
             return "AED {:,}".format(price)
+
+    def _prop_size_handler(self, prop: dict) -> str:
+        if type(prop["size"]) == str:
+            return "{:,}".format(int(prop["size"]))
+        else:
+            return "{:,}".format(int(prop["size"]["value"]))
+
+    def _bed_bath_handler(self, prop: dict, target: Literal["beds", "baths"]) -> str:
+        if target == "beds": # handling num bedrooms
+            if type(prop["bedroom"]) == dict:
+                return f'{prop["bedroom"]["value"]} Bedrooms'
+            elif type(prop["bedroom"]) == str:
+                return f'{prop["bedroom"]} Bedrooms'
+        elif target == "baths": # handling num bathrooms
+            if type(prop["bathroom"]) == dict:
+                return f'{prop["bathroom"]["value"]} Bathrooms'
+            elif type(prop["bathroom"]) == str:
+                return f'{prop["bathroom"]} Bathrooms'
+        else:
+            raise RuntimeError(f"Target `{target}` is not supported!")
 
     def _split_desc(self, property_desc: str) -> [str, str]:
         parts = re.split(r'\n+', property_desc)
@@ -268,18 +300,20 @@ class KendalAgent:
 ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
                  webflow_secret=WEBFLOW_SECRET,
                  poa_value=POA_VALUE,
+                 cs_value=CS_VALUE,
                  webflow_collection=WF_COLLECTION)
 
 def lambda_handler(event: dict, context: dict):
     ka.run()
     print("Successfully synced Kendal with Webflow")
 
-lambda_handler({}, {})
 
 # if __name__ == "__main__":
 #     boto_sess = boto3.Session(region_name=AWS_REGION, profile_name="ccre")
 #     ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
 #                      webflow_secret=WEBFLOW_SECRET,
 #                      webflow_collection=WF_COLLECTION,
+#                      poa_value=POA_VALUE,
+#                      cs_value=CS_VALUE,
 #                      boto_session=boto_sess)
 #     ka.run()

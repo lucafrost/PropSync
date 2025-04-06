@@ -58,3 +58,9 @@ variable "poa_value" {
   description = "Integer Value for Manual POA Functionality"
   default     = 999
 }
+
+variable "cs_value" {
+  type        = number
+  description = "Integer Value for Manual 'Coming Soon' Functionality"
+  default     = 998
+}
