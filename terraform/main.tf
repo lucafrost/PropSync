@@ -123,7 +123,7 @@ resource "aws_lambda_function" "lambda" {
       XML_ENDPOINT   = var.kendal_feed
       WEBFLOW_SECRET = var.webflow_secret
       WF_COLLECTION  = var.webflow_collection_id
-      POA_VALUE = var.poa_value
+      POA_VALUE      = var.poa_value
     }
   }
 }

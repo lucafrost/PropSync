@@ -54,7 +54,7 @@ variable "lambda_code_path" {
 }
 
 variable "poa_value" {
-  type = number
+  type        = number
   description = "Integer Value for Manual POA Functionality"
-  default = 999
+  default     = 999
 }
