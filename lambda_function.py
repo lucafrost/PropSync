@@ -1,4 +1,10 @@
-from typing import Any, List, OrderedDict, Optional
+from typing import (
+    Any,
+    List,
+    OrderedDict,
+    Optional,
+    Union
+)
 from urllib.parse import quote
 import xmltodict
 import pydantic
@@ -15,6 +21,7 @@ WEBFLOW_SECRET = os.environ["WEBFLOW_SECRET"]
 WF_COLLECTION = os.environ["WF_COLLECTION"]
 XML_ENDPOINT = os.environ["XML_ENDPOINT"]
 AWS_REGION = os.environ["AWS_REGION"]
+POA_VALUE = os.environ["POA_VALUE"]
 
 
 # ----- PYDANTIC MODEL -----
@@ -50,6 +57,7 @@ class KendalAgent:
     def __init__(self, xml_endpoint: str,
                  webflow_secret: str,
                  webflow_collection: str,
+                 poa_value: Union[False, int],
                  boto_session: boto3.Session = None) -> None:
         """
         Initialise a new KendalAgent object.
@@ -62,8 +70,20 @@ class KendalAgent:
             ARN of Secret in AWS Secrets Manager containing Webflow site token.
         webflow_collection: str
             Webflow Collection ID from CMS.
+        poa_value : Union[False, int]
+            Optional. Value at which the price changes to
+            "Price on Application". See notes. Set to False to
+            disable this behaviour.
         boto_session : boto3.Session
             Pre-initialised Boto3 Session for AWS Authentication.
+
+        Notes
+        -----
+        Kendal does not support setting properties to POA, instead,
+        they require an integer for the price field. By setting the
+        `poa_value` to an integer (e.g. 999), any properties priced
+        at that value will have their price set in Webflow as
+        "price on application".
         """
         if not boto_session:
             boto_session = boto3.Session(region_name=AWS_REGION)
@@ -72,6 +92,7 @@ class KendalAgent:
         self.webflow_key = self.shh.get_secret_value(SecretId=webflow_secret)["SecretString"]
         self.xml_endpoint = xml_endpoint
         self.webflow_collection = webflow_collection
+        self.poa_value = poa_value
 
     def run(self):
         # [1.] PRE-PROCESSING
@@ -110,21 +131,41 @@ class KendalAgent:
                 LongDesc=long_desc,
                 Address=f'{prop["property_name"]}, {prop["community"]}, {prop["city"]}',
                 SizeSqft="{:,}".format(int(prop["size"])),
-                AskingPrice="AED {:,}".format(int(prop["askingPrice"]["value"])),
+                AskingPrice=self._price_handler(int(prop["askingPrice"]["value"])),
                 NumBeds=f'{prop["bedroom"]} Bedrooms',
                 NumBaths=f'{prop["bathroom"]} Bathrooms',
-                ImageOne=quote(prop["photo"]["url"][0], safe=':/'),  # Encode URL, keep :/ safe
-                ImageTwo=quote(prop["photo"]["url"][1], safe=':/'),
-                ImageThree=quote(prop["photo"]["url"][2], safe=':/'),
-                ImageFour=quote(prop["photo"]["url"][3], safe=':/'),
-                ImageFive=quote(prop["photo"]["url"][4], safe=':/'),
+                ImageOne=self._serialise_url(prop["photo"]["url"][0]),
+                ImageTwo=self._serialise_url(prop["photo"]["url"][1]),
+                ImageThree=self._serialise_url(prop["photo"]["url"][2]),
+                ImageFour=self._serialise_url(prop["photo"]["url"][3]),
+                ImageFive=self._serialise_url(prop["photo"]["url"][4]),
                 AgentName=prop["agent"]["name"],
-                AgentAvatar=quote(prop["agent"]["photo"], safe=':/'),
+                AgentAvatar=self._serialise_url(prop["agent"]["photo"]),
                 AgentEmail=prop["agent"]["email"],
                 AgentTel=prop["agent"]["phone"]
             )
             serialised.append(list_obj)
         return serialised
+
+    def _serialise_url(self, url: str) -> str:
+        """
+        Method to wrap urllib.parse.quote to format/serialise URLs.
+        This is necessary as a great deal of images on Kendal have
+        filenames from WhatsApp and contain spaces (e.g. WhatsApp
+        Image 2025-01-01.jpg)
+
+        Parameters
+        ----------
+        url : str
+            Input URL
+        """
+        return quote(url, safe=':/')
+
+    def _price_handler(self, price: int) -> str:
+        if price == self.poa_value:
+            return "Price on Application"
+        else:
+            return "AED {:,}".format(price)
 
     def _split_desc(self, property_desc: str) -> [str, str]:
         parts = re.split(r'\n+', property_desc)
@@ -226,6 +267,7 @@ class KendalAgent:
 
 ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
                  webflow_secret=WEBFLOW_SECRET,
+                 poa_value=POA_VALUE,
                  webflow_collection=WF_COLLECTION)
 
 def lambda_handler(event: dict, context: dict):
