@@ -52,3 +52,9 @@ variable "lambda_code_path" {
   description = "Path to `lambda_function.py`"
   default     = "../lambda_function.py"
 }
+
+variable "poa_value" {
+  type = number
+  description = "Integer Value for Manual POA Functionality"
+  default = 999
+}
