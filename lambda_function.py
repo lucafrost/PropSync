@@ -181,9 +181,9 @@ class KendalAgent:
 
     def _prop_size_handler(self, prop: dict) -> str:
         if type(prop["size"]) == str:
-            return "{:,}".format(int(prop["size"]))
+            return "{:,} sqft".format(int(prop["size"]))
         else:
-            return "{:,}".format(int(prop["size"]["value"]))
+            return "{:,} sqft".format(int(prop["size"]["value"]))
 
     def _bed_bath_handler(self, prop: dict, target: Literal["beds", "baths"]) -> str:
         if target == "beds": # handling num bedrooms
@@ -299,8 +299,8 @@ class KendalAgent:
 
 ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
                  webflow_secret=WEBFLOW_SECRET,
-                 poa_value=POA_VALUE,
-                 cs_value=CS_VALUE,
+                 poa_value=int(POA_VALUE),
+                 cs_value=int(CS_VALUE),
                  webflow_collection=WF_COLLECTION)
 
 def lambda_handler(event: dict, context: dict):
