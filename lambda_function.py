@@ -181,9 +181,9 @@ class KendalAgent:
 
     def _prop_size_handler(self, prop: dict) -> str:
         if type(prop["size"]) == str:
-            return "{:,} sqft".format(int(prop["size"]))
+            return "BUA {:,} sqft".format(int(prop["size"]))
         else:
-            return "{:,} sqft".format(int(prop["size"]["value"]))
+            return "BUA {:,} sqft".format(int(prop["size"]["value"]))
 
     def _bed_bath_handler(self, prop: dict, target: Literal["beds", "baths"]) -> str:
         if target == "beds": # handling num bedrooms
