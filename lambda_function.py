@@ -25,6 +25,7 @@ AWS_REGION = os.environ["AWS_REGION"]
 POA_VALUE = os.environ["POA_VALUE"]
 CS_VALUE = os.environ["CS_VALUE"]
 
+
 # ----- PYDANTIC MODEL -----
 
 class ListingType(pydantic.BaseModel):
@@ -132,7 +133,7 @@ class KendalAgent:
     def _serialise_all(self, properties: List[dict]) -> List[ListingType]:
         serialised: list[ListingType] = []
         for prop in properties:
-            short_desc, long_desc = self._split_desc(prop["description_en"])
+            short_desc, long_desc = self._fmt_desc(prop["description_en"])
             list_obj = ListingType(
                 KendalRef=prop["reference_number"],
                 PropertyName=prop["title_en"],
@@ -172,6 +173,7 @@ class KendalAgent:
         return quote(url, safe=':/')
 
     def _price_handler(self, price: int) -> str:
+        # TODO: Implement off-plan range logic
         if price == self.poa_value:
             return "Price on Application"
         elif price == self.cs_value:
@@ -180,6 +182,7 @@ class KendalAgent:
             return "AED {:,}".format(price)
 
     def _prop_size_handler(self, prop: dict) -> str:
+        # TODO: Implement off-plan range logic
         if type(prop["size"]) == str:
             return "BUA {:,} sqft".format(int(prop["size"]))
         else:
@@ -187,11 +190,13 @@ class KendalAgent:
 
     def _bed_bath_handler(self, prop: dict, target: Literal["beds", "baths"]) -> str:
         if target == "beds": # handling num bedrooms
+            # TODO: Implement off-plan range logic
             if type(prop["bedroom"]) == dict:
                 return f'{prop["bedroom"]["value"]} Bedrooms'
             elif type(prop["bedroom"]) == str:
                 return f'{prop["bedroom"]} Bedrooms'
         elif target == "baths": # handling num bathrooms
+            # TODO: Implement off-plan range logic
             if type(prop["bathroom"]) == dict:
                 return f'{prop["bathroom"]["value"]} Bathrooms'
             elif type(prop["bathroom"]) == str:
@@ -199,7 +204,7 @@ class KendalAgent:
         else:
             raise RuntimeError(f"Target `{target}` is not supported!")
 
-    def _split_desc(self, property_desc: str) -> [str, str]:
+    def _fmt_desc(self, property_desc: str) -> [str, str]:
         parts = re.split(r'\n+', property_desc)
         parts = [part.strip() for part in parts if part.strip()]
         short_desc = ""
@@ -208,6 +213,7 @@ class KendalAgent:
             short_desc = parts[0]
             if len(parts) > 1:
                 long_desc = '\n'.join(parts[1:])
+        long_desc = long_desc.replace("\n", "<br><br>")
         return short_desc, long_desc
 
     def _get_all_item_ids(self, live: bool, collection_id: str) -> List[dict]:
@@ -313,7 +319,7 @@ def lambda_handler(event: dict, context: dict):
 #     ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
 #                      webflow_secret=WEBFLOW_SECRET,
 #                      webflow_collection=WF_COLLECTION,
-#                      poa_value=POA_VALUE,
-#                      cs_value=CS_VALUE,
+#                      poa_value=int(POA_VALUE),
+#                      cs_value=int(CS_VALUE),
 #                      boto_session=boto_sess)
 #     ka.run()
