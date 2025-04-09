@@ -142,9 +142,9 @@ class KendalAgent:
                 LongDesc=long_desc,
                 Address=f'{prop["property_name"]}, {prop["community"]}, {prop["city"]}',
                 SizeSqft=self._prop_size_handler(prop),
-                AskingPrice=self._price_handler(int(prop["askingPrice"]["value"])),
-                NumBeds=self._bed_bath_handler(prop, "beds"),
-                NumBaths=self._bed_bath_handler(prop, "baths"),
+                AskingPrice=self._price_handler(prop["askingPrice"]),
+                NumBeds=self._bed_bath_handler(prop, "bedroom"),
+                NumBaths=self._bed_bath_handler(prop, "bathroom"),
                 ImageOne=self._serialise_url(prop["photo"]["url"][0]),
                 ImageTwo=self._serialise_url(prop["photo"]["url"][1]),
                 ImageThree=self._serialise_url(prop["photo"]["url"][2]),
@@ -172,37 +172,75 @@ class KendalAgent:
         """
         return quote(url, safe=':/')
 
-    def _price_handler(self, price: int) -> str:
-        # TODO: Implement off-plan range logic
-        if price == self.poa_value:
-            return "Price on Application"
-        elif price == self.cs_value:
-            return "Coming Soon"
+    def _price_handler(self, price_data: Union[int, dict]) -> str:
+        """
+        Handle price formatting for both fixed and range values.
+
+        Parameters
+        ----------
+        price_data : Union[int, dict]
+            The askingPrice data from the XML feed. Can be an int (for older format)
+            or a dict with 'type', 'value', 'min', and 'max' keys.
+
+        Returns
+        -------
+        str
+            Formatted price string (e.g., "AED 1,234,567", "AED 999k - 2.3m", "Price on Application")
+        """
+        def format_price(value: int) -> str:
+            """Helper function to format a single price value into k or m notation."""
+            if value >= 1_000_000:  # Millions
+                return f"{value / 1_000_000:.1f}m".replace(".0", "")
+            elif value >= 10_000:  # Thousands (only for larger numbers to avoid 9k, etc.)
+                return f"{value / 1_000:.0f}k"
+            else:
+                return "{:,}".format(value)
+        # handle legacy integer input
+        if isinstance(price_data, int):
+            if price_data == self.poa_value:
+                return "Price on Application"
+            elif price_data == self.cs_value:
+                return "Coming Soon"
+            else:
+                return f"AED {format_price(price_data)}"
+        # handle new dict input from XML feed
+        if not isinstance(price_data, dict):
+            raise ValueError("price_data must be an int or dict")
+        price_type = price_data.get("type")
+        if price_type == "fixed":
+            value = int(price_data["value"])
+            if value == self.poa_value:
+                return "Price on Application"
+            elif value == self.cs_value:
+                return "Coming Soon"
+            else:
+                return f"AED {format_price(value)}"
+        elif price_type == "range":
+            min_value, max_value = int(price_data["min"]), int(price_data["max"])
+            return f"AED {format_price(min_value)} - {format_price(max_value)}"
         else:
-            return "AED {:,}".format(price)
+            raise ValueError(f"Unsupported price type: {price_type}")
 
     def _prop_size_handler(self, prop: dict) -> str:
-        # TODO: Implement off-plan range logic
         if type(prop["size"]) == str:
             return "BUA {:,} sqft".format(int(prop["size"]))
         else:
-            return "BUA {:,} sqft".format(int(prop["size"]["value"]))
+            if prop["size"]["type"] == "fixed":
+                return "BUA {:,} sqft".format(int(prop["size"]["value"]))
+            elif prop["size"]["type"] == "range":
+                return "BUA {:,}-{:,} sqft".format(int(prop["size"]["min"]), int(prop["size"]["max"]))
+            else:
+                raise RuntimeError("Property size type is unsupported")
 
-    def _bed_bath_handler(self, prop: dict, target: Literal["beds", "baths"]) -> str:
-        if target == "beds": # handling num bedrooms
-            # TODO: Implement off-plan range logic
-            if type(prop["bedroom"]) == dict:
-                return f'{prop["bedroom"]["value"]} Bedrooms'
-            elif type(prop["bedroom"]) == str:
-                return f'{prop["bedroom"]} Bedrooms'
-        elif target == "baths": # handling num bathrooms
-            # TODO: Implement off-plan range logic
-            if type(prop["bathroom"]) == dict:
-                return f'{prop["bathroom"]["value"]} Bathrooms'
-            elif type(prop["bathroom"]) == str:
-                return f'{prop["bathroom"]} Bathrooms'
-        else:
-            raise RuntimeError(f"Target `{target}` is not supported!")
+    def _bed_bath_handler(self, prop: dict, target: Literal["bedroom", "bathroom"]) -> str:
+        verbose_target = target.capitalize() + "s"
+        if type(prop[target]) == dict:
+            if prop[target]["type"] == "fixed":
+                return f'{prop[target]["value"]} {verbose_target}'
+            elif prop[target]["type"] == "range":
+                return f'{prop[target]["min"]}-{prop[target]["max"]} {verbose_target}'
+        elif type(prop[target]) == str:
+            return f'{prop[target]} {verbose_target}'
 
     def _fmt_desc(self, property_desc: str) -> [str, str]:
         parts = re.split(r'\n+', property_desc)
