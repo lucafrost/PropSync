@@ -92,7 +92,7 @@ resource "aws_iam_role_policy_attachment" "lambda" {
 # Zip :: Codebase for Lambda Function
 data "archive_file" "lambda" {
   type        = "zip"
-  source_file = var.lambda_code_path
+  source_dir  = var.lambda_code_path
   output_path = "lambda.zip"
 }
 
@@ -120,11 +120,12 @@ resource "aws_lambda_function" "lambda" {
 
   environment {
     variables = {
-      XML_ENDPOINT   = var.kendal_feed
-      WEBFLOW_SECRET = var.webflow_secret
-      WF_COLLECTION  = var.webflow_collection_id
-      POA_VALUE      = var.poa_value
-      CS_VALUE       = var.cs_value
+      VIDEO_LISTINGS_FILE = var.video_listings_file
+      XML_ENDPOINT        = var.kendal_feed
+      WEBFLOW_SECRET      = var.webflow_secret
+      WF_COLLECTION       = var.webflow_collection_id
+      POA_VALUE           = var.poa_value
+      CS_VALUE            = var.cs_value
     }
   }
 }

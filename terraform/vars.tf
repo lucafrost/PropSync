@@ -50,7 +50,7 @@ variable "trigger_frequency" {
 variable "lambda_code_path" {
   type        = string
   description = "Path to `lambda_function.py`"
-  default     = "../lambda_function.py"
+  default     = "../lambda/"
 }
 
 variable "poa_value" {
@@ -63,4 +63,10 @@ variable "cs_value" {
   type        = number
   description = "Integer Value for Manual 'Coming Soon' Functionality"
   default     = 998
+}
+
+variable "video_listings_file" {
+  type        = string
+  description = "Filename for JSON Video Listings File"
+  default     = "video_listings.json"
 }

@@ -6,7 +6,7 @@ from typing import (
     Union,
     Literal
 )
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, parse_qs
 import xmltodict
 import pydantic
 import requests
@@ -18,6 +18,7 @@ import os
 
 # ----- ENVIRONMENT VARIABLES -----
 
+VIDEO_LISTINGS_FILE = os.environ["VIDEO_LISTINGS_FILE"]
 WEBFLOW_SECRET = os.environ["WEBFLOW_SECRET"]
 WF_COLLECTION = os.environ["WF_COLLECTION"]
 XML_ENDPOINT = os.environ["XML_ENDPOINT"]
@@ -46,6 +47,11 @@ class ListingType(pydantic.BaseModel):
     ImageThree: str
     ImageFour: str
     ImageFive: str
+    # ImageSix: str
+    # ImageSeven: str
+    # ImageEight: str
+    # ImageNine: str
+    # ImageTen: str
     # Agent Details
     AgentName: Optional[str] = None
     AgentAvatar: Optional[str] = None
@@ -59,6 +65,7 @@ class KendalAgent:
     def __init__(self, xml_endpoint: str,
                  webflow_secret: str,
                  webflow_collection: str,
+                 video_listings_file: Union[Literal[False], str],
                  poa_value: Union[Literal[False], int],
                  cs_value: Union[Literal[False], int],
                  boto_session: boto3.Session = None) -> None:
@@ -70,9 +77,13 @@ class KendalAgent:
         xml_endpoint : str
             URL of the endpoint exposed by Kendal.
         webflow_secret : str
-            ARN of Secret in AWS Secrets Manager containing Webflow site token.
+            ARN of Secret in AWS Secrets Manager containing Webflow
+            site token.
         webflow_collection: str
             Webflow Collection ID from CMS.
+        video_listings_file : Union[False, str]
+            Optional. Path to JSON file containing a dictionary of
+            property refs from Kendal and YouTube video URLs.
         poa_value : Union[False, int]
             Optional. Value at which the price changes to
             "Price on Application". See notes. Set to False to
@@ -104,6 +115,11 @@ class KendalAgent:
         self.webflow_collection = webflow_collection
         self.poa_value = poa_value
         self.cs_value = cs_value
+        if video_listings_file:
+            with open(video_listings_file) as f:
+                self.videos: dict = dict(json.load(f))
+        else:
+            self.videos = False
 
     def run(self):
         # [1.] PRE-PROCESSING
@@ -150,6 +166,11 @@ class KendalAgent:
                 ImageThree=self._serialise_url(prop["photo"]["url"][2]),
                 ImageFour=self._serialise_url(prop["photo"]["url"][3]),
                 ImageFive=self._serialise_url(prop["photo"]["url"][4]),
+                # ImageSix=self._serialise_url(prop["photo"]["url"][5]),
+                # ImageSeven=self._serialise_url(prop["photo"]["url"][6]),
+                # ImageEight=self._serialise_url(prop["photo"]["url"][7]),
+                # ImageNine=self._serialise_url(prop["photo"]["url"][8]),
+                # ImageTen=self._serialise_url(prop["photo"]["url"][9]),
                 AgentName=prop["agent"]["name"],
                 AgentAvatar=self._serialise_url(prop["agent"]["photo"]),
                 AgentEmail=prop["agent"]["email"],
@@ -281,6 +302,26 @@ class KendalAgent:
             error_message = f"Failed to delete all Webflow items, status code {r.status_code} returned: {r.text}"
             raise RuntimeError(error_message)
 
+    def _extract_youtube_id(self, url: str) -> str:
+        query = urlparse(url)
+        if query.hostname == 'youtu.be':
+            return query.path[1:]
+        if query.hostname in ('www.youtube.com', 'youtube.com', 'm.youtube.com'):
+            if query.path == '/watch':
+                p = parse_qs(query.query)
+                return p['v'][0]
+            if query.path[:7] == '/embed/':
+                return query.path.split('/')[2]
+            if query.path[:3] == '/v/':
+                return query.path.split('/')[2]
+
+    def _video_handler(self, property_ref: str) -> Union[Literal[False], str]:
+        if property_ref in self.videos.keys():
+            youtube_url = self.videos[property_ref]
+            return self._extract_youtube_id(youtube_url)
+        else:
+            return ""
+
     def _create_bulk_items(self, collection_id: str, properties: List[ListingType]):
         url = f"https://api.webflow.com/v2/collections/{collection_id}/items/live"
         headers = {
@@ -321,13 +362,35 @@ class KendalAgent:
                     "fileId": None,
                     "url": prop.ImageFive
                 },
+                # "image-six": {
+                #     "fileId": None,
+                #     "url": prop.ImageSix
+                # },
+                # "image-seven": {
+                #     "fileId": None,
+                #     "url": prop.ImageSeven
+                # },
+                # "image-eight": {
+                #     "fileId": None,
+                #     "url": prop.ImageEight
+                # },
+                # "image-nine": {
+                #     "fileId": None,
+                #     "url": prop.ImageNine
+                # },
+                # "image-ten": {
+                #     "fileId": None,
+                #     "url": prop.ImageTen
+                # },
                 "agentname": prop.AgentName,
                 "agentemail": prop.AgentEmail,
                 "agenttel": prop.AgentTel,
                 "agentavatar": {
                     "fileId": None,
                     "url": prop.AgentAvatar
-                }
+                },
+                "video-one": self._video_handler(prop.KendalRef),
+                "video-2": True if prop.KendalRef in self.videos.keys() else False
             }
         } for prop in properties]
         payload = {"items": items}
@@ -345,6 +408,7 @@ ka = KendalAgent(xml_endpoint=XML_ENDPOINT,
                  webflow_secret=WEBFLOW_SECRET,
                  poa_value=int(POA_VALUE),
                  cs_value=int(CS_VALUE),
+                video_listings_file=VIDEO_LISTINGS_FILE,
                  webflow_collection=WF_COLLECTION)
 
 def lambda_handler(event: dict, context: dict):
@@ -359,5 +423,6 @@ def lambda_handler(event: dict, context: dict):
 #                      webflow_collection=WF_COLLECTION,
 #                      poa_value=int(POA_VALUE),
 #                      cs_value=int(CS_VALUE),
+#                      video_listings_file=VIDEO_LISTINGS_FILE,
 #                      boto_session=boto_sess)
 #     ka.run()
